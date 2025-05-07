@@ -4,6 +4,7 @@ import * as vscode from "vscode";
 import type { Environment } from "../environment";
 import type { Logger } from "../logger";
 import { tryResolveNpmExecutable } from "./npm";
+import { findDprintConfigUri } from "../utils/configs/dprintConfigFinder";
 
 export interface EditorInfo {
   schemaVersion: number;
@@ -35,7 +36,7 @@ export interface DprintExecutableOptions {
 export class DprintExecutable {
   readonly #cmdPath: string;
   readonly #cwd: vscode.Uri;
-  readonly #configUri: vscode.Uri | undefined;
+  private  configUri: vscode.Uri | undefined;
   readonly #verbose: boolean;
   readonly #logger: Logger;
 
@@ -43,15 +44,17 @@ export class DprintExecutable {
     this.#logger = options.logger;
     this.#cmdPath = options.cmdPath ?? "dprint";
     this.#cwd = options.cwd;
-    this.#configUri = options.configUri;
     this.#verbose = options.verbose;
   }
 
   static async create(options: DprintExecutableOptions) {
-    return new DprintExecutable({
+    const dprint = new DprintExecutable({
       ...options,
+
       cmdPath: await DprintExecutable.resolveCmdPath(options),
     });
+    dprint.configUri = options.configUri ?? await findDprintConfigUri(options.logger);
+    return dprint;
   }
 
   static async resolveCmdPath(options: {
@@ -73,8 +76,8 @@ export class DprintExecutable {
   }
 
   get initializationFolderUri() {
-    if (this.#configUri != null) {
-      return vscode.Uri.joinPath(this.#configUri, "../");
+    if (this.configUri) {
+      return vscode.Uri.joinPath(this.configUri, "../");
     }
     return this.#cwd;
   }
@@ -164,8 +167,8 @@ export class DprintExecutable {
   }
 
   #getConfigArgs() {
-    if (this.#configUri) {
-      return ["--config", this.#configUri.fsPath];
+    if (this.configUri) {
+      return ["--config", this.configUri.fsPath];
     } else {
       return [];
     }

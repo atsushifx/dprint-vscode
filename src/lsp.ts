@@ -7,6 +7,7 @@ import { RealEnvironment } from "./environment";
 import { DprintExecutable } from "./executable/DprintExecutable";
 import type { ExtensionBackend } from "./ExtensionBackend";
 import type { Logger } from "./logger";
+import { findDprintConfigUri } from "./utils/configs/dprintConfigFinder";
 
 export function activateLsp(
   _context: vscode.ExtensionContext,
@@ -20,7 +21,11 @@ export function activateLsp(
     async reInitialize() {
       await client?.stop(2_000);
       client = undefined;
-      if (!(await workspaceHasConfigFile())) {
+
+      const configUri = await findDprintConfigUri(logger)
+      const configPath: string | undefined = configUri? configUri.fsPath : undefined;
+      logger.logDebug(`Config path: ${configPath ?? "undefined"}`);
+      if (!configPath && !(await workspaceHasConfigFile())) {
         logger.logInfo("Configuration file not found.");
         return;
       }
@@ -36,6 +41,9 @@ export function activateLsp(
       const args = ["lsp"];
       if (config?.verbose) {
         args.push("--verbose");
+      }
+      if (configPath) {
+        args.push("--config", configPath);
       }
       const serverOptions: ServerOptions = {
         command: cmdPath ?? "dprint",
